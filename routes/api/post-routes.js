@@ -1,10 +1,17 @@
 const router = require('express').Router();
-const { Post, User } = require('../../models');
+const { User, Post, Vote } = require("../../models");
 
 // get all users
 router.get('/', (req, res) => {
     Post.findAll({
-      attributes: ['id', 'post_url', 'title', 'created_at'],
+      // update the `.findAll()` method's attributes to look like this
+    attributes: [
+        'id',
+        'post_url',
+        'title',
+        'created_at',
+        [sequelize.literal('(SELECT COUNT(*) FROM vote WHERE post.id = vote.post_id)'), 'vote_count']
+  ],
       order: [['created_at', 'DESC']],
       include: [
         {
@@ -25,11 +32,23 @@ router.get('/', (req, res) => {
       where: {
         id: req.params.id
       },
-      attributes: ['id', 'post_url', 'title', 'created_at'],
+      attributes: [
+        'id',
+        'post_url',
+        'title',
+        'created_at',
+        [sequelize.literal('(SELECT COUNT(*) FROM vote WHERE post.id = vote.post_id)'), 'vote_count']
+      ],
       include: [
         {
-          model: User,
-          attributes: ['username']
+          model: Post,
+          attributes: ['id', 'title', 'post_url', 'created_at']
+        },
+        {
+          model: Post,
+          attributes: ['title'],
+          through: Vote,
+          as: 'voted_posts'
         }
       ]
     })
@@ -57,6 +76,17 @@ router.get('/', (req, res) => {
       .catch(err => {
         console.log(err);
         res.status(500).json(err);
+      });
+  });
+
+  // PUT /api/posts/upvote
+  router.put('/upvote', (req, res) => {
+    // custom static method created in models/Post.js
+    Post.upvote(req.body, { Vote })
+      .then(updatedPostData => res.json(updatedPostData))
+      .catch(err => {
+        console.log(err);
+        res.status(400).json(err);
       });
   });
 
